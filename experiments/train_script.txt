@@ -1,0 +1,1 @@
+python train.py --scenario simple_tag --num-adversaries 3 --exp-name ppRun2 --num-episodes 10000 --save-rate 500
