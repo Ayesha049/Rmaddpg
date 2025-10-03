@@ -103,6 +103,7 @@ def parse_args():
     parser.add_argument("--uniform-low", type=float, default=-0.1, help="low bound for uniform noise")
     parser.add_argument("--uniform-high", type=float, default=0.1, help="high bound for uniform noise")
     parser.add_argument("--llm-disturb-interval", type=int, default=5, help="steps between disturbances")
+    parser.add_argument("--num-test-episodes", type=int, default=1000, help="number of testing episodes")
 
     # --- LLM-guided adversary ---
     parser.add_argument("--llm-guide", type=str, default="adversary", choices=["none", "adversary"],
@@ -173,7 +174,7 @@ def train(arglist):
             arglist.load_dir = arglist.save_dir
         if arglist.display or arglist.restore or arglist.benchmark:
             print('Loading previous state...')
-            U.load_state(arglist.load_dir)
+            U.load_state(arglist.load_dir, exp_name=arglist.exp_name)
 
         episode_rewards = [0.0]  # sum of rewards for all agents
         agent_rewards = [[0.0] for _ in range(env.n)]  # individual agent reward
@@ -249,7 +250,7 @@ def train(arglist):
 
             # save model, display training output
             if terminal and (len(episode_rewards) % arglist.save_rate == 0):
-                U.save_state(arglist.save_dir, saver=saver)
+                U.save_state(arglist.save_dir, saver=saver, exp_name=arglist.exp_name)
                 # print statement depends on whether or not there are adversaries
                 if num_adversaries == 0:
                     print("steps: {}, episodes: {}, mean episode reward: {}, time: {}".format(
@@ -349,7 +350,7 @@ def train_multiple_runs(arglist, seed_list):
                 arglist.load_dir = arglist.save_dir
             if arglist.display or arglist.restore or arglist.benchmark:
                 print('Loading previous state...')
-                U.load_state(arglist.load_dir)
+                U.load_state(arglist.load_dir, exp_name=arglist.exp_name)
 
             episode_rewards = [0.0]  # sum of rewards for all agents
             agent_rewards = [[0.0] for _ in range(env.n)]  # per-agent rewards
@@ -397,7 +398,7 @@ def train_multiple_runs(arglist, seed_list):
 
                 # save and log rewards
                 if terminal and (len(episode_rewards) % arglist.save_rate == 0):
-                    U.save_state(arglist.save_dir, saver=saver)
+                    U.save_state(arglist.save_dir, saver=saver, exp_name=arglist.exp_name)
                     mean_episode_reward = np.mean(episode_rewards[-arglist.save_rate:])
                     final_ep_rewards.append(mean_episode_reward)
                     per_agent_means = [np.mean(a[-arglist.save_rate:]) for a in agent_rewards]
@@ -439,7 +440,7 @@ def train_multiple_runs(arglist, seed_list):
     print("Saved concatenated mean episode rewards for all runs to {}".format(csv_file))
 
 
-def test(arglist):
+def testWithoutP(arglist):
     tf.reset_default_graph()
     with U.single_threaded_session():
         # Create environment
@@ -460,10 +461,10 @@ def test(arglist):
         #if arglist.load_dir == "":
         arglist.load_dir = arglist.save_dir
         print('Loading trained model from {}'.format(arglist.load_dir))
-        U.load_state(arglist.load_dir)
+        U.load_state(arglist.load_dir, exp_name=arglist.exp_name)
 
         # Parameters for testing
-        n_episodes = 1000
+        n_episodes = arglist.num_test_episodes
         max_episode_len = arglist.max_episode_len
 
         all_rewards = []
@@ -496,9 +497,7 @@ def test(arglist):
         return np.mean(np.sum(all_rewards, axis=1))
 
 
-
-
-def testRobustness(arglist):
+def testRobustnessOP(arglist):
     tf.reset_default_graph()
     with U.single_threaded_session():
         # Create environment
@@ -519,10 +518,10 @@ def testRobustness(arglist):
         #if arglist.load_dir == "":
         arglist.load_dir = arglist.save_dir
         print('Loading trained model from {}'.format(arglist.load_dir))
-        U.load_state(arglist.load_dir)
+        U.load_state(arglist.load_dir, exp_name=arglist.exp_name)
 
         # Testing params
-        n_episodes = 1000
+        n_episodes = arglist.num_test_episodes
         max_episode_len = arglist.max_episode_len
         all_rewards = []
 
@@ -596,10 +595,10 @@ def testRobustnessOA(arglist):
         # Load trained model
         arglist.load_dir = arglist.save_dir
         print('Loading trained model from {}'.format(arglist.load_dir))
-        U.load_state(arglist.load_dir)
+        U.load_state(arglist.load_dir, exp_name=arglist.exp_name)
 
         # Testing params
-        n_episodes = 1000
+        n_episodes = arglist.num_test_episodes
         max_episode_len = arglist.max_episode_len
         all_rewards = []
 
@@ -624,6 +623,80 @@ def testRobustnessOA(arglist):
                 action_n = [
                     agent.action(obs_dis)
                     for agent, obs_dis in zip(trainers, obs_n_disrupted)
+                ]
+
+                # --- Apply action disruption ---
+                action_n_disrupted = [
+                    apply_action_disruption(action, 0, env, arglist)
+                    for action in action_n
+                ]
+
+                # --- Environment step ---
+                new_obs_n, rew_n, done_n, info_n = env.step(action_n_disrupted)
+
+                # --- Track reward ---
+                episode_reward += rew_n
+                obs_n = new_obs_n
+
+                # --- Render if needed ---
+                if arglist.display:
+                    env.render()
+                    time.sleep(0.05)
+
+                if all(done_n):
+                    break
+
+            all_rewards.append(episode_reward)
+            # print("Episode {} reward (per agent): {}".format(ep + 1, episode_reward))
+
+        mean_rewards = np.mean(all_rewards, axis=0)
+        print("Average reward per agent over {} episodes: {}".format(n_episodes, mean_rewards))
+        print("Average total reward: {}".format(np.mean(np.sum(all_rewards, axis=1))))
+        return np.mean(np.sum(all_rewards, axis=1))
+    
+def testRobustnessAP(arglist):
+    tf.reset_default_graph()
+    with U.single_threaded_session():
+        # Create environment
+        env = make_env(arglist.scenario, arglist, arglist.benchmark)
+
+        # Create agent trainers
+        obs_shape_n = [env.observation_space[i].shape for i in range(env.n)]
+        num_adversaries = min(env.n, arglist.num_adversaries)
+        trainers = get_trainers(env, num_adversaries, obs_shape_n, arglist)
+
+        print('Testing using good policy {} and adv policy {}'.format(
+            arglist.good_policy, arglist.adv_policy))
+
+        # Initialize TF graph
+        U.initialize()
+
+        # Load trained model
+        arglist.load_dir = arglist.save_dir
+        print('Loading trained model from {}'.format(arglist.load_dir))
+        U.load_state(arglist.load_dir, exp_name=arglist.exp_name)
+
+        # Testing params
+        n_episodes = arglist.num_test_episodes
+        max_episode_len = arglist.max_episode_len
+        all_rewards = []
+
+        # --- Extra for disruption ---
+        env.llm_disturb_iteration = 0
+        env.previous_reward = 0
+
+        print('Starting testing with robustness perturbations...')
+
+        for ep in range(n_episodes):
+            obs_n = env.reset()
+            episode_reward = np.zeros(env.n)
+
+            for step in range(max_episode_len):
+
+                # --- Get actions from agents ---
+                action_n = [
+                    agent.action(obs_dis)
+                    for agent, obs_dis in zip(trainers, obs_n)
                 ]
 
                 # --- Apply action disruption ---
@@ -758,14 +831,17 @@ if __name__ == '__main__':
             run_results = {"run": run_id + 1}
 
             # baseline (no noise)
-            rew = test(arglist)
+            rew = testWithoutP(arglist)
             run_results["none"] = rew
 
             for noise in ["gauss", "shift", "uniform"]:
                 arglist.noise_type = noise
 
-                rew = testRobustness(arglist)
+                rew = testRobustnessOP(arglist)
                 run_results["{}_obs_only".format(noise)] = rew
+
+                rew = testRobustnessAP(arglist)
+                run_results["{}_act_only".format(noise)] = rew
 
                 rew = testRobustnessOA(arglist)
                 run_results["{}_obs+action".format(noise)] = rew
