@@ -14,6 +14,7 @@ import json
 import csv
 import os
 import random
+import pandas as pd
 
 API_KEY = ""
 
@@ -85,6 +86,9 @@ def parse_args():
 
     parser.add_argument("--run-id", type=int, default=0, help="ID of the run for multiple seeds")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducibility")
+
+    parser.add_argument("--mode", choices=["train", "test"], default="train", help="Run mode: 'train' to train agents, 'test' to run evaluation")
+    parser.add_argument("--num_test_runs", type=int, default=5, help="Number of test runs to perform when in test mode")
 
 
 
@@ -489,6 +493,7 @@ def test(arglist):
         mean_rewards = np.mean(all_rewards, axis=0)
         print("Average reward per agent over {} episodes: {}".format(n_episodes, mean_rewards))
         print("Average total reward: {}".format(np.mean(np.sum(all_rewards, axis=1))))
+        return np.mean(np.sum(all_rewards, axis=1))
 
 
 
@@ -568,6 +573,7 @@ def testRobustness(arglist):
         mean_rewards = np.mean(all_rewards, axis=0)
         print("Average reward per agent over {} episodes: {}".format(n_episodes, mean_rewards))
         print("Average total reward: {}".format(np.mean(np.sum(all_rewards, axis=1))))
+        return np.mean(np.sum(all_rewards, axis=1))
 
 
 def testRobustnessOA(arglist):
@@ -647,6 +653,7 @@ def testRobustnessOA(arglist):
         mean_rewards = np.mean(all_rewards, axis=0)
         print("Average reward per agent over {} episodes: {}".format(n_episodes, mean_rewards))
         print("Average total reward: {}".format(np.mean(np.sum(all_rewards, axis=1))))
+        return np.mean(np.sum(all_rewards, axis=1))
 
 
 def apply_observation_disruption(observation, reward, env, args):
@@ -740,19 +747,37 @@ def apply_action_disruption(action, reward, env, args):
 if __name__ == '__main__':
     arglist = parse_args()
     # train(arglist)
-    seed_list = [1, 2, 3]  # list of random seeds for multiple runs
-    train_multiple_runs(arglist, seed_list)
-    # print("===============test without any noise=================")
-    # test(arglist)
-    # # testRobustness(arglist)
-    # # for noise in ["gauss", "shift", "uniform"]:
-    # for noise in ["gauss"]:
-    #     print("====== noise_type = {} ======".format(noise))
-    #     arglist.noise_type = noise
-        
-    #     print("========== openai maddpg testing perturbed obs only ==================")
-    #     testRobustness(arglist)
-        
-    #     print("==================== openai maddpg testing perturbed obs and action ============")
-    #     testRobustnessOA(arglist)
+    if arglist.mode == "train":
+        seed_list = [1]  # list of random seeds for multiple runs
+        train_multiple_runs(arglist, seed_list)
+    else:
+        all_results = []
+
+        for run_id in range(arglist.num_test_runs):
+            print("\n================ Run {}/{} ================".format(run_id + 1, arglist.num_test_runs))
+            run_results = {"run": run_id + 1}
+
+            # baseline (no noise)
+            rew = test(arglist)
+            run_results["none"] = rew
+
+            for noise in ["gauss", "shift", "uniform"]:
+                arglist.noise_type = noise
+
+                rew = testRobustness(arglist)
+                run_results["{}_obs_only".format(noise)] = rew
+
+                rew = testRobustnessOA(arglist)
+                run_results["{}_obs+action".format(noise)] = rew
+
+            all_results.append(run_results)
+
+        # convert to dataframe
+        df = pd.DataFrame(all_results)
+
+        # save to CSV
+        exp_name = arglist.exp_name if arglist.exp_name is not None else "default_exp"
+        df.to_csv(exp_name +"_test_rewards.csv", index=False)
+
+        print("\n✅ Saved test results for", arglist.num_runs, "runs to test_rewards.csv")
     

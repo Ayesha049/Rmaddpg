@@ -1,1 +1,3 @@
 python train.py --scenario simple_tag --num-adversaries 3 --exp-name ppRun2 --num-episodes 10000 --save-rate 500
+python train.py --scenario simple_speaker_listener --exp-name ccRun1 --num-episodes 60000 --save-rate 500
+python train.py --scenario simple_speaker_listener --exp-name ccRun1 --mode test
