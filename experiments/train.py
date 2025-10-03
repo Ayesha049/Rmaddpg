@@ -331,6 +331,7 @@ def train_multiple_runs(arglist, seed_list):
         arglist.seed = seed
 
         tf.reset_default_graph()   # reset TF graph
+        max_mean_ep_reward = None
 
         with U.single_threaded_session():
             # Create environment
@@ -400,6 +401,9 @@ def train_multiple_runs(arglist, seed_list):
                 if terminal and (len(episode_rewards) % arglist.save_rate == 0):
                     U.save_state(arglist.save_dir, saver=saver, exp_name=arglist.exp_name)
                     mean_episode_reward = np.mean(episode_rewards[-arglist.save_rate:])
+                    if max_mean_ep_reward is None or max_mean_ep_reward < mean_episode_reward:
+                        max_mean_ep_reward = mean_episode_reward
+                        U.save_state(arglist.save_dir, saver=saver, exp_name=arglist.exp_name+"best")
                     final_ep_rewards.append(mean_episode_reward)
                     per_agent_means = [np.mean(a[-arglist.save_rate:]) for a in agent_rewards]
                     final_ep_ag_rewards.append(per_agent_means)
@@ -855,5 +859,5 @@ if __name__ == '__main__':
         exp_name = arglist.exp_name if arglist.exp_name is not None else "default_exp"
         df.to_csv(exp_name +"_test_rewards.csv", index=False)
 
-        print("\n✅ Saved test results for", arglist.num_runs, "runs to test_rewards.csv")
+        # print("\n✅ Saved test results for", arglist.num_runs, "runs to test_rewards.csv")
     
