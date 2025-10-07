@@ -1,4 +1,7 @@
 python train.py --scenario simple_tag --num-adversaries 3 --exp-name ppRun2 --num-episodes 6000 --save-rate 500
 python train.py --scenario simple_tag --exp-name ppRun4best --mode test
-python train.py --scenario simple_speaker_listener --exp-name ccRun1 --num-episodes 60000 --save-rate 500
-python train.py --scenario simple_speaker_listener --exp-name ccRun1 --mode test
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_speaker_listener --exp-name ccRun1 --num-episodes 60000 --save-rate 500
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_speaker_listener --exp-name ccRun1 --mode test & SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_speaker_listener --exp-name ccRun1best --mode test
+
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_tag --num-adversaries 3 --exp-name ppeRun1 --num-episodes 6000 --save-rate 500 --use_ernie
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_speaker_listener --exp-name ccRun1 --num-episodes 60000 --save-rate 500 --use_ernie

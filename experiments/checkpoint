@@ -1,3 +1,3 @@
-model_checkpoint_path: "modelccRun2best"
-all_model_checkpoint_paths: "modelccRun2"
-all_model_checkpoint_paths: "modelccRun2best"
+model_checkpoint_path: "modelccRun1"
+all_model_checkpoint_paths: "modelccRun1best"
+all_model_checkpoint_paths: "modelccRun1"

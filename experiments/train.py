@@ -67,7 +67,7 @@ def parse_args():
     parser.add_argument("--good-policy", type=str, default="maddpg", help="policy for good agents")
     parser.add_argument("--adv-policy", type=str, default="maddpg", help="policy of adversaries")
     # Core training parameters
-    parser.add_argument("--lr", type=float, default=1e-2, help="learning rate for Adam optimizer")
+    parser.add_argument("--lr", type=float, default=1e-4, help="learning rate for Adam optimizer")
     parser.add_argument("--gamma", type=float, default=0.95, help="discount factor")
     parser.add_argument("--batch-size", type=int, default=1024, help="number of episodes to optimize at the same time")
     parser.add_argument("--num-units", type=int, default=64, help="number of units in the mlp")
@@ -111,6 +111,14 @@ def parse_args():
     parser.add_argument("--llm-guide-type", type=str, default="stochastic",
                         choices=["stochastic", "uniform", "constraint"],
                         help="LLM adversarial perturbation type")
+    
+    # --- ERNIE regularization ---
+    parser.add_argument("--use_ernie", action="store_true", default=False, help="If true, apply ERNIE regularization to policy updates")
+    parser.add_argument("--lambda_ernie", type=float, default=0.01, help="Weight for the ERNIE adversarial regularization term in the policy loss.")
+    parser.add_argument("--perturb_epsilon", type=float, default=0.001, help="Maximum magnitude of adversarial perturbation applied to observations.")
+    parser.add_argument("--perturb_alpha", type=float, default=0.001, help="Step size (learning rate) for generating adversarial perturbations.")
+    parser.add_argument("--perturb_num_steps", type=int, default=3, help="Number of gradient ascent steps used to generate adversarial perturbations.")
+
 
 
     return parser.parse_args()

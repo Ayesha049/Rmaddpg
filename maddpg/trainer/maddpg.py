@@ -25,7 +25,8 @@ def make_update_exp(vals, target_vals):
     expression = tf.group(*expression)
     return U.function([], [], updates=[expression])
 
-def p_train(make_obs_ph_n, act_space_n, p_index, p_func, q_func, optimizer, grad_norm_clipping=None, local_q_func=False, num_units=64, scope="trainer", reuse=None):
+def p_train(make_obs_ph_n, act_space_n, p_index, p_func, q_func, optimizer, grad_norm_clipping=None, local_q_func=False, num_units=64, scope="trainer", reuse=None, 
+            use_ernie=False, lambda_ernie=0.1, perturb_epsilon=0.01, perturb_alpha=0.002, perturb_num_steps=3):
     with tf.variable_scope(scope, reuse=reuse):
         # create distribtuions
         act_pdtype_n = [make_pdtype(act_space) for act_space in act_space_n]
@@ -53,7 +54,69 @@ def p_train(make_obs_ph_n, act_space_n, p_index, p_func, q_func, optimizer, grad
         q = q_func(q_input, 1, scope="q_func", reuse=True, num_units=num_units)[:,0]
         pg_loss = -tf.reduce_mean(q)
 
-        loss = pg_loss + p_reg * 1e-3
+        # ---- ERNIE adversarial regularizer (optional) ----
+        if use_ernie:
+            # initialize perturbed obs with tiny random noise
+            noise = tf.random_normal(shape=tf.shape(p_input), stddev=1e-3)
+            perturbed_obs = p_input + noise
+
+            # helper: l2-normalize gradients per-example
+            def normalize_per_example(x, eps=1e-8):
+                # x shape: [batch, ...]; normalize across feature dims, keep batch
+                sq = tf.reduce_sum(tf.square(x), axis=list(range(1, len(x.get_shape()))), keepdims=True)
+                return x / (tf.sqrt(sq) + eps)
+
+            # get original policy params (flat) for reference
+            p_orig = p  # flat parameter vector per-example, shape [batch, param_dim]
+
+            # inner maximization: gradient ascent on perturbed_obs to maximize parameter distance
+            for _ in range(perturb_num_steps):
+                # reuse p_func variables for perturb input
+                p_pert = p_func(
+                            perturbed_obs,
+                            int(act_pdtype_n[p_index].param_shape()[0]),
+                            scope="p_func",
+                            num_units=num_units,
+                            reuse=True
+                        )
+
+                # distance between policy outputs (use flat param distance)
+                # per-example L2 norm: sqrt(sum((p_orig - p_pert)^2, axis=1))
+                diff = p_orig - p_pert
+                per_example_dist = tf.sqrt(tf.reduce_sum(tf.square(diff), axis=1) + 1e-12)    # shape [batch]
+                distance = tf.reduce_mean(per_example_dist)  # scalar objective to maximize
+
+                # gradient of the distance w.r.t. perturbed_obs
+                grad = tf.gradients(distance, [perturbed_obs])[0]  # same shape as perturbed_obs
+
+                # normalize gradient per-example to prevent explosion
+                grad = normalize_per_example(grad)
+
+                # gradient ascent step
+                perturbed_obs = perturbed_obs + perturb_alpha * grad
+
+                # clip to epsilon-ball around p_input (L_inf clip)
+                delta = perturbed_obs - p_input
+                delta = tf.clip_by_value(delta, -perturb_epsilon, perturb_epsilon)
+                perturbed_obs = p_input + delta
+
+            # final perturbed policy parameters (re-using policy variables)
+            p_pert_final = p_func(
+                                perturbed_obs,
+                                int(act_pdtype_n[p_index].param_shape()[0]),
+                                scope="p_func",
+                                num_units=num_units,
+                                reuse=True
+                            )
+
+            # adversarial regularization loss: average L2 distance between flat params
+            diff_final = p_orig - p_pert_final
+            per_example_dist_final = tf.sqrt(tf.reduce_sum(tf.square(diff_final), axis=1) + 1e-12)
+            adv_reg_loss = tf.reduce_mean(per_example_dist_final)  # scalar
+        else:
+            adv_reg_loss = 0.0
+
+        loss = pg_loss + p_reg * 1e-3 + (lambda_ernie * adv_reg_loss if use_ernie else 0.0)
 
         optimize_expr = U.minimize_and_clip(optimizer, loss, p_func_vars, grad_norm_clipping)
 
@@ -115,6 +178,16 @@ class MADDPGAgentTrainer(AgentTrainer):
         self.n = len(obs_shape_n)
         self.agent_index = agent_index
         self.args = args
+
+        #ERNIE regularization parameters
+        self.use_ernie = args.use_ernie
+        self.lambda_ernie = getattr(args, "lambda_ernie", 0.05)
+        self.perturb_epsilon = getattr(args, "perturb_epsilon", 0.001)
+        self.perturb_alpha = getattr(args, "perturb_alpha", 0.001)
+        self.perturb_num_steps = getattr(args, "perturb_num_steps", 3)
+
+
+
         obs_ph_n = []
         for i in range(self.n):
             obs_ph_n.append(U.BatchInput(obs_shape_n[i], name="observation"+str(i)).get())
@@ -141,7 +214,12 @@ class MADDPGAgentTrainer(AgentTrainer):
             optimizer=tf.train.AdamOptimizer(learning_rate=args.lr),
             grad_norm_clipping=0.5,
             local_q_func=local_q_func,
-            num_units=args.num_units
+            num_units=args.num_units,
+            use_ernie=self.use_ernie,
+            lambda_ernie=self.lambda_ernie,
+            perturb_epsilon=self.perturb_epsilon,
+            perturb_alpha=self.perturb_alpha,
+            perturb_num_steps=self.perturb_num_steps
         )
         # Create experience buffer
         self.replay_buffer = ReplayBuffer(1e6)
