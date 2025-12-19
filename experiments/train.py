@@ -88,7 +88,7 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducibility")
 
     parser.add_argument("--mode", choices=["train", "test"], default="train", help="Run mode: 'train' to train agents, 'test' to run evaluation")
-    parser.add_argument("--num_test_runs", type=int, default=5, help="Number of test runs to perform when in test mode")
+    parser.add_argument("--num_test_runs", type=int, default=3, help="Number of test runs to perform when in test mode")
 
 
 
@@ -99,11 +99,11 @@ def parse_args():
                         help="type of noise distribution")
     parser.add_argument("--noise-mu", type=float, default=0.0, help="mean for Gaussian noise")
     parser.add_argument("--noise-sigma", type=float, default=1, help="std for Gaussian noise")
-    parser.add_argument("--noise-shift", type=float, default=0.05, help="shift noise magnitude")
-    parser.add_argument("--uniform-low", type=float, default=-0.1, help="low bound for uniform noise")
-    parser.add_argument("--uniform-high", type=float, default=0.1, help="high bound for uniform noise")
+    parser.add_argument("--noise-shift", type=float, default=0.9, help="shift noise magnitude")
+    parser.add_argument("--uniform-low", type=float, default=-0.9, help="low bound for uniform noise")
+    parser.add_argument("--uniform-high", type=float, default=0.9, help="high bound for uniform noise")
     parser.add_argument("--llm-disturb-interval", type=int, default=5, help="steps between disturbances")
-    parser.add_argument("--num-test-episodes", type=int, default=1000, help="number of testing episodes")
+    parser.add_argument("--num-test-episodes", type=int, default=800, help="number of testing episodes")
 
     # --- LLM-guided adversary ---
     parser.add_argument("--llm-guide", type=str, default="adversary", choices=["none", "adversary"],
@@ -545,6 +545,15 @@ def testRobustnessOP(arglist):
 
         for ep in range(n_episodes):
             obs_n = env.reset()
+
+            disrupted_obs_n = []
+            for i, obs in enumerate(obs_n):
+                disrupted_obs_n.append(apply_observation_disruption(
+                    obs, 0, env, arglist
+                ))
+
+            obs_n = disrupted_obs_n
+
             episode_reward = np.zeros(env.n)
 
             for step in range(max_episode_len):
@@ -622,6 +631,13 @@ def testRobustnessOA(arglist):
 
         for ep in range(n_episodes):
             obs_n = env.reset()
+            disrupted_obs_n = []
+            for i, obs in enumerate(obs_n):
+                disrupted_obs_n.append(apply_observation_disruption(
+                    obs, 0, env, arglist
+                ))
+
+            obs_n = disrupted_obs_n
             episode_reward = np.zeros(env.n)
 
             for step in range(max_episode_len):
@@ -742,98 +758,41 @@ def testRobustnessAP(arglist):
 
 
 def apply_observation_disruption(observation, reward, env, args):
-    """
-    Apply noise or LLM-guided disruption to observation/reward.
-    Ensures the output is always a valid NumPy array.
-    """
-    # Keep track of iterations
-    env.llm_disturb_iteration += 1
     obs_orig = np.array(observation, dtype=np.float32)
 
     # === Apply noise ===
-    if args.noise_factor == "state" and env.llm_disturb_iteration % args.llm_disturb_interval == 0:
-        if args.noise_type == "gauss":
-            noise = np.random.normal(args.noise_mu, args.noise_sigma, size=obs_orig.shape)
-            # print(noise)
-            noise = 10*noise+5
-            obs_orig = obs_orig + noise
-        elif args.noise_type == "shift":
-            obs_orig = obs_orig + args.noise_shift
-        elif args.noise_type == "uniform":
-            noise = np.random.uniform(args.uniform_low, args.uniform_high, size=obs_orig.shape)
-            noise = 5*noise
-            obs_orig = obs_orig + noise
+    
+    if args.noise_type == "gauss":
+        noise = np.random.normal(0, 0.5, size=obs_orig.shape)
+        # print(noise)
+        obs_orig = obs_orig + noise
+    elif args.noise_type == "shift":
+        obs_orig = obs_orig + args.noise_shift
+    elif args.noise_type == "uniform":
+        noise = np.random.uniform(0, 0.2, size=obs_orig.shape)
+        obs_orig = obs_orig + noise
 
-    # === LLM-guided perturbation ===
-    if args.llm_guide == "adversary" and env.llm_disturb_iteration % args.llm_disturb_interval == 0:
-        prompt = (
-            "Robust RL adversary: Current reward = {}, previous reward = {}. "
-            "Revise this state: {}. Output only the revised state as a Python list."
-        ).format(reward, env.previous_reward, obs_orig.tolist())
-
-        obs_from_gpt = gpt_call(prompt)
-        if obs_from_gpt is not None:
-            try:
-                obs_from_gpt = np.array(eval(obs_from_gpt), dtype=np.float32)
-                # reshape/pad/truncate to match original observation
-                if obs_from_gpt.shape != obs_orig.shape:
-                    flat = obs_from_gpt.flatten()
-                    size_needed = np.prod(obs_orig.shape)
-                    if flat.size < size_needed:
-                        flat = np.pad(flat, (0, size_needed - flat.size), mode="constant")
-                    else:
-                        flat = flat[:size_needed]
-                    obs_from_gpt = flat.reshape(obs_orig.shape)
-                obs_orig = obs_from_gpt
-            except:
-                # fallback to original observation
-                pass
-
-    env.previous_reward = reward
+        
     return obs_orig
 
 
 def apply_action_disruption(action, reward, env, args):
-    env.llm_disturb_iteration += 1
     action_orig = np.array(action, dtype=np.float32)
 
-    if args.noise_factor == "action" and env.llm_disturb_iteration % args.llm_disturb_interval == 0:
-        if args.noise_type == "gauss":
-            action_orig = action_orig + np.random.normal(args.noise_mu, args.noise_sigma, size=action_orig.shape)
-        elif args.noise_type == "shift":
-            action_orig = action_orig + args.noise_shift
-        elif args.noise_type == "uniform":
-            action_orig = action_orig + np.random.uniform(args.uniform_low, args.uniform_high, size=action_orig.shape)
+    if args.noise_type == "gauss":
+        action_orig = action_orig + np.random.normal(0, .5, size=action_orig.shape)
+    elif args.noise_type == "shift":
+        action_orig = action_orig + args.noise_shift
+    elif args.noise_type == "uniform":
+        action_orig = action_orig + np.random.uniform(1, 4, size=action_orig.shape)
 
-    if args.llm_guide == "adversary" and env.llm_disturb_iteration % args.llm_disturb_interval == 0:
-        prompt = (
-            "Robust RL adversary: Current reward = {}, previous reward = {}. "
-            "Revise this action: {}. Output only the revised action as a Python list."
-        ).format(reward, env.previous_reward, action_orig.tolist())
-        action_from_gpt = gpt_call(prompt)
-        if action_from_gpt is not None:
-            try:
-                action_from_gpt = np.array(eval(action_from_gpt), dtype=np.float32)
-                if action_from_gpt.shape != action_orig.shape:
-                    flat = action_from_gpt.flatten()
-                    size_needed = np.prod(action_orig.shape)
-                    if flat.size < size_needed:
-                        flat = np.pad(flat, (0, size_needed - flat.size), mode="constant")
-                    else:
-                        flat = flat[:size_needed]
-                    action_from_gpt = flat.reshape(action_orig.shape)
-                action_orig = action_from_gpt
-            except:
-                pass
-
-    env.previous_reward = reward
     return action_orig
 
 if __name__ == '__main__':
     arglist = parse_args()
     # train(arglist)
     if arglist.mode == "train":
-        seed_list = [1]  # list of random seeds for multiple runs
+        seed_list = [1,2,3,4,5]  # list of random seeds for multiple runs
         train_multiple_runs(arglist, seed_list)
     else:
         all_results = []
@@ -846,7 +805,7 @@ if __name__ == '__main__':
             rew = testWithoutP(arglist)
             run_results["none"] = rew
 
-            for noise in ["gauss", "shift", "uniform"]:
+            for noise in ["gauss"]:
                 arglist.noise_type = noise
 
                 rew = testRobustnessOP(arglist)
