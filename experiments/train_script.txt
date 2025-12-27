@@ -8,6 +8,26 @@ SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_adversary --exp-name saRu
 SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_adversary --exp-name saRun1 --mode train_diffusion --diffusion-data-path ./saRun1_diffusion_data.npz --diffusion-model-path ./saRun1_diffusion_model.pt --diffusion-horizon 25 --diffusion-steps 100 --diffusion-epochs 1000
 SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_adversary --exp-name saRun1best --mode test --diffusion-model-path ./saRun1_diffusion_model.pt
 
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_speaker_listener --exp-name ccRun1 --num-episodes 30000 --save-rate 500
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_speaker_listener --exp-name ccRun1best --mode collect_diffusion --num-episodes 2000 --diffusion-horizon 25 --diffusion-data-path ./ccRun1_diffusion_data.npz
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_speaker_listener --exp-name ccRun1 --mode train_diffusion --diffusion-data-path ./ccRun1_diffusion_data.npz --diffusion-model-path ./ccRun1_diffusion_model.pt --diffusion-horizon 25 --diffusion-steps 100 --diffusion-epochs 1000
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_speaker_listener --exp-name ccRun1best --mode test --diffusion-model-path ./ccRun1_diffusion_model.pt
+
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_crypto --exp-name ccnRun1 --num-episodes 30000 --save-rate 500
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_crypto --exp-name ccnRun1best --mode collect_diffusion --num-episodes 2000 --diffusion-horizon 25 --diffusion-data-path ./ccnRun1_diffusion_data.npz
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_crypto --exp-name ccnRun1 --mode train_diffusion --diffusion-data-path ./ccnRun1_diffusion_data.npz --diffusion-model-path ./ccnRun1_diffusion_model.pt --diffusion-horizon 25 --diffusion-steps 100 --diffusion-epochs 1000
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_crypto --exp-name ccnRun1best --mode test --diffusion-model-path ./ccnRun1_diffusion_model.pt
+
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_push --exp-name kaRun1 --num-episodes 30000 --save-rate 500
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_push --exp-name kaRun1best --mode collect_diffusion --num-episodes 2000 --diffusion-horizon 25 --diffusion-data-path ./kaRun1_diffusion_data.npz
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_push --exp-name kaRun1 --mode train_diffusion --diffusion-data-path ./kaRun1_diffusion_data.npz --diffusion-model-path ./kaRun1_diffusion_model.pt --diffusion-horizon 25 --diffusion-steps 100 --diffusion-epochs 1000
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_push --exp-name kaRun1best --mode test --diffusion-model-path ./kaRun1_diffusion_model.pt
+
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_spread --exp-name cnRun1 --num-episodes 30000 --save-rate 500
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_spread --exp-name cnRun1best --mode collect_diffusion --num-episodes 2000 --diffusion-horizon 25 --diffusion-data-path ./cnRun1_diffusion_data.npz
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_spread --exp-name cnRun1 --mode train_diffusion --diffusion-data-path ./cnRun1_diffusion_data.npz --diffusion-model-path ./cnRun1_diffusion_model.pt --diffusion-horizon 25 --diffusion-steps 100 --diffusion-epochs 1000
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_spread --exp-name cnRun1best --mode test --diffusion-model-path ./cnRun1_diffusion_model.pt
+
 
 SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_adversary --exp-name saRun1 --num-episodes 60000 --save-rate 500
 SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_tag --exp-name ppRun4best --mode test

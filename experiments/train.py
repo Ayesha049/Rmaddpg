@@ -804,7 +804,7 @@ def testRobustnessAP(arglist, deffusion=True):
                 n_agents = len(action_n)
 
                 # Action dimension per agent (assume all agents have same action dim)
-                action_dim_per_agent = action_n[0].shape[0]
+                action_dim_per_agent = [len(a) for a in action_n]
 
                 # print("Number of agents:", n_agents)
                 # print("Action dimension per agent:", action_dim_per_agent)
@@ -833,8 +833,8 @@ def testRobustnessAP(arglist, deffusion=True):
                     # print(action_vec_clean)
 
                     action_n_clean = split_actions(action_vec_clean, n_agents, action_dim_per_agent)
-                # print("===========Clean actions:=============")
-                # print(action_n_clean)
+                    # print("===========Clean actions:=============")
+                    # print(action_n_clean)
 
                 # for i, a in enumerate(action_n_clean):
                 #     print("Agent {}: type={}, len={}, inner shape={}".format(
@@ -1209,11 +1209,18 @@ def split_actions(action_vec, n_agents, action_dim_per_agent):
     # assert len(action_vec) == n_agents * action_dim_per_agent, \
     #     f"Length mismatch: {len(action_vec)} != {n_agents}*{action_dim_per_agent}"
     
+    # split = []
+    # for i in range(n_agents):
+    #     start = i * action_dim_per_agent
+    #     end = start + action_dim_per_agent
+    #     split.append(action_vec[start:end])
+
     split = []
-    for i in range(n_agents):
-        start = i * action_dim_per_agent
-        end = start + action_dim_per_agent
+    start = 0
+    for dim in action_dim_per_agent:
+        end = start + dim
         split.append(action_vec[start:end])
+        start = end
     return split
 
 
@@ -1257,7 +1264,7 @@ if __name__ == '__main__':
     print(arglist.act_noise)
 
     if arglist.mode == "train":
-        seed_list = [1, 2, 3, 4, 5]
+        seed_list = [1]
         train_multiple_runs(arglist, seed_list)
 
     elif arglist.mode == "test":
