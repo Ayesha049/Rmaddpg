@@ -128,7 +128,7 @@ def parse_args():
     parser.add_argument("--uniform-low", type=float, default=-0.9, help="low bound for uniform noise")
     parser.add_argument("--uniform-high", type=float, default=0.9, help="high bound for uniform noise")
     parser.add_argument("--llm-disturb-interval", type=int, default=5, help="steps between disturbances")
-    parser.add_argument("--num-test-episodes", type=int, default=800, help="number of testing episodes")
+    parser.add_argument("--num-test-episodes", type=int, default=5, help="number of testing episodes")
 
     # --- LLM-guided adversary ---
     parser.add_argument("--llm-guide", type=str, default="adversary", choices=["none", "adversary"],
@@ -740,7 +740,7 @@ def testRobustnessOA(arglist):
         print("Average total reward: {}".format(np.mean(np.sum(all_rewards, axis=1))))
         return np.mean(np.sum(all_rewards, axis=1))
     
-def testRobustnessAP(arglist, deffusion=True):
+def testRobustnessAP(arglist, deffusion=True, t_start=40):
     tf.reset_default_graph()
     with U.single_threaded_session():
         # Create environment
@@ -827,7 +827,7 @@ def testRobustnessAP(arglist, deffusion=True):
                     action_vec_clean = diffusion_denoise_action(
                         action_vec_noisy,
                         state_vec,
-                        t_start=40
+                        t_start=t_start
                     )
                     # print("=======Clean action vec:=========")
                     # print(action_vec_clean)
@@ -1251,13 +1251,18 @@ def apply_action_disruption(action, reward, env, args):
     action_orig = np.array(action, dtype=np.float32)
 
     if args.noise_type == "gauss":
-        action_orig = action_orig + np.random.normal(0, arglist.act_noise, size=action_orig.shape)
+        # print("==============args.act_noise===========", arglist.act_noise)
+        action_orig = action_orig + np.random.normal(0, args.act_noise, size=action_orig.shape)
     elif args.noise_type == "shift":
         action_orig = action_orig + args.noise_shift
     elif args.noise_type == "uniform":
         action_orig = action_orig + np.random.uniform(1, 4, size=action_orig.shape)
 
     return action_orig
+
+
+def r2(x):
+    return "{:.2f}".format(float(x))
 
 if __name__ == '__main__':
     arglist = parse_args()
@@ -1278,49 +1283,103 @@ if __name__ == '__main__':
         #     rew = testRobustnessAP(arglist)
         #     print("Reward with noise shift with deffusion {}: {}".format(noise, rew))
 
-        csv_filename = "{}_robustness_results.csv".format(arglist.exp_name)
 
-        # Prepare results list
+        # Sweep settings
+        act_std_list = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8, 3.0]
+        t_start_list = [20, 40, 60]
+
+        csv_filename = "{}_actstd_tstart_sweep.csv".format(arglist.exp_name)
         results = []
 
         # Baseline (no noise, no diffusion)
         rew_no_noise = testWithoutP(arglist)
-        print("Reward without any noise {}".format(rew_no_noise))
+        print("Baseline (no noise): {:.3f}".format(rew_no_noise))
 
-        # Noise levels
-        act_noise_list = [0.0, 0.2, 0.4, 0.6, 0.8, 1, 1.2, 1.4]
+        for act_std in act_std_list:
+            arglist.act_noise = act_std
+            print("\n=== Action noise std = {} ===".format(act_std))
 
-        for noise in act_noise_list:
-            arglist.act_noise = noise
+            # Noise, no diffusion
+            rew_no_diff = testRobustnessAP(
+                arglist,
+                deffusion=False
+            )
 
-            # Without diffusion
-            rew_no_diff = testRobustnessAP(arglist, deffusion=False)
-            print("Reward with noise shift {}: {}".format(noise, rew_no_diff))
+            print("  No diffusion reward: {:.3f}".format(rew_no_diff))
 
-            # With diffusion
-            rew_with_diff = testRobustnessAP(arglist)
-            print("Reward with noise shift with diffusion {}: {}".format(noise, rew_with_diff))
+            # Store diffusion rewards per t_start
+            diff_rewards = {}
 
-            # Store row
-            results.append([
-                noise,
-                rew_no_noise,
-                rew_no_diff,
-                rew_with_diff
+            for t_start in t_start_list:
+                print("  -> t_start = {}".format(t_start))
+
+                rew_with_diff = testRobustnessAP(
+                    arglist,
+                    deffusion=True,
+                    t_start=t_start
+                )
+
+                diff_rewards[t_start] = rew_with_diff
+
+                print(
+                    "     with diffusion (t_start={}): {:.3f}".format(
+                        t_start, rew_with_diff
+                    )
+                )
+
+            # Derived metrics
+            best_diff_reward = max(diff_rewards.values())
+
+            pct_inc_vs_no_diff = (
+                (best_diff_reward - rew_no_diff) / abs(rew_no_diff)
+            ) * 100.0
+
+            pct_inc_vs_no_noise = (
+                (best_diff_reward - rew_no_noise) / abs(rew_no_noise)
+            ) * 100.0
+
+            # Assemble row
+            row = [
+                r2(act_std),
+                r2(rew_no_noise),
+                r2(rew_no_diff)
+            ]
+
+            for t_start in t_start_list:
+                row.append(r2(diff_rewards[t_start]))
+
+            row.extend([
+                r2(best_diff_reward),
+                r2(pct_inc_vs_no_diff),
+                r2(pct_inc_vs_no_noise)
             ])
 
-        # Write CSV
-        with open(csv_filename, mode='w') as f:
+            results.append(row)
+        # -----------------------------
+        # Dynamic CSV header
+        # -----------------------------
+        header = [
+            "action_noise_std",
+            "reward_no_noise",
+            "reward_noise_no_diffusion"
+        ]
+
+        for t_start in t_start_list:
+            header.append("reward_with_diff_t{}".format(t_start))
+
+        header.extend([
+            "best_reward_with_diffusion",
+            "pct_inc_vs_no_diffusion",
+            "pct_inc_vs_no_noise_worst"
+        ])
+
+        with open(csv_filename, mode="w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow([
-                "action_noise_std",
-                "reward_no_noise",
-                "reward_noise_no_diffusion",
-                "reward_noise_with_diffusion"
-            ])
+            writer.writerow(header)
             writer.writerows(results)
 
         print("Saved robustness results to {}".format(csv_filename))
+
 
         # all_results = []
 
