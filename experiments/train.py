@@ -128,7 +128,7 @@ def parse_args():
     parser.add_argument("--uniform-low", type=float, default=-0.9, help="low bound for uniform noise")
     parser.add_argument("--uniform-high", type=float, default=0.9, help="high bound for uniform noise")
     parser.add_argument("--llm-disturb-interval", type=int, default=5, help="steps between disturbances")
-    parser.add_argument("--num-test-episodes", type=int, default=5, help="number of testing episodes")
+    parser.add_argument("--num-test-episodes", type=int, default=800, help="number of testing episodes")
 
     # --- LLM-guided adversary ---
     parser.add_argument("--llm-guide", type=str, default="adversary", choices=["none", "adversary"],
