@@ -3,6 +3,11 @@ SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_tag --exp-name ppRun1best
 SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_tag --exp-name ppRun1 --mode train_diffusion --diffusion-data-path ./ppRun1_diffusion_data.npz --diffusion-model-path ./ppRun1_diffusion_model.pt --diffusion-horizon 25 --diffusion-steps 100 --diffusion-epochs 1000
 SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_tag --exp-name ppRun1best --mode test --diffusion-model-path ./ppRun1_diffusion_model.pt
 
+
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_tag --exp-name ppRun2best --mode collect_diffusion --num-episodes 2000 --diffusion-horizon 25 --diffusion-data-path ./ppRun2_diffusion_data.npz
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_tag --exp-name ppRun1 --mode train_diffusion --diffusion-data-path ./pp_diffusion_data_merged.npz --diffusion-model-path ./ppMergeRun1_diffusion_model.pt --diffusion-horizon 25 --diffusion-steps 100 --diffusion-epochs 500
+SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_tag --exp-name ppRun2best --mode test --diffusion-model-path ./ppMergeRun1_diffusion_model.pt
+
 SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_tag --num-adversaries 3 --exp-name ppeRun1 --num-episodes 30000 --save-rate 500 --use_ernie
 SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_tag --exp-name ppeRun1best --mode collect_diffusion --num-episodes 2000 --diffusion-horizon 25 --diffusion-data-path ./ppeRun1_diffusion_data.npz
 SUPPRESS_MA_PROMPT=1 python train.py --scenario simple_tag --exp-name ppeRun1 --mode train_diffusion --diffusion-data-path ./ppRun1_diffusion_data.npz --diffusion-model-path ./ppeRun1_diffusion_model.pt --diffusion-horizon 25 --diffusion-steps 100 --diffusion-epochs 500
