@@ -86,7 +86,7 @@ def parse_args():
     parser.add_argument("--num-units", type=int, default=64, help="number of units in the mlp")
     # Checkpointing
     parser.add_argument("--exp-name", type=str, default="predator-pray", help="name of the experiment")
-    parser.add_argument("--save-dir", type=str, default="./model", help="directory in which training state and model should be saved")
+    parser.add_argument("--save-dir", type=str, default="../../models", help="directory in which training state and model should be saved")
     parser.add_argument("--save-rate", type=int, default=100, help="save model once every time this many episodes are completed")
     parser.add_argument("--load-dir", type=str, default="./model", help="directory in which training state and model are loaded")
     # Evaluation
@@ -95,7 +95,7 @@ def parse_args():
     parser.add_argument("--benchmark", action="store_true", default=False)
     parser.add_argument("--benchmark-iters", type=int, default=100000, help="number of iterations run for benchmarking")
     parser.add_argument("--benchmark-dir", type=str, default="./benchmark_files/", help="directory where benchmark data is saved")
-    parser.add_argument("--plots-dir", type=str, default="./learning_curves/", help="directory where plot data is saved")
+    parser.add_argument("--plots-dir", type=str, default="../../results/", help="directory where plot data is saved")
 
     parser.add_argument("--run-id", type=int, default=0, help="ID of the run for multiple seeds")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducibility")
@@ -152,9 +152,9 @@ def parse_args():
     parser.add_argument("--diffusion-batch-size", type=int, default=64)
     parser.add_argument("--diffusion-epochs", type=int, default=50)
     parser.add_argument("--diffusion-lr", type=float, default=1e-4)
-    parser.add_argument("--diffusion-data-path", type=str, default="./diffusion_data.npz",
+    parser.add_argument("--diffusion-data-path", type=str, default="../../diffusion_data.npz",
                         help="where to save/load (states,actions) trajectories")
-    parser.add_argument("--diffusion-model-path", type=str, default="./diffusion_model.pt",
+    parser.add_argument("--diffusion-model-path", type=str, default="../../diffusion_model.pt",
                         help="where to save the trained diffusion model")
 
 
@@ -1252,11 +1252,12 @@ def apply_action_disruption(action, reward, env, args):
 
     if args.noise_type == "gauss":
         # print("==============args.act_noise===========", arglist.act_noise)
-        action_orig = action_orig + np.random.normal(0, args.act_noise, size=action_orig.shape)
+        action_orig = action_orig + np.random.normal(args.noise_mu, args.act_noise, size=action_orig.shape)
     elif args.noise_type == "shift":
         action_orig = action_orig + args.noise_shift
     elif args.noise_type == "uniform":
-        action_orig = action_orig + np.random.uniform(1, 4, size=action_orig.shape)
+        # print("==============args.act_noise===========", arglist.act_noise)
+        action_orig = action_orig + np.random.uniform(args.uniform_low, args.uniform_high, size=action_orig.shape)
 
     return action_orig
 
@@ -1266,6 +1267,12 @@ def r2(x):
 
 if __name__ == '__main__':
     arglist = parse_args()
+    # Set plots directory based on scenario
+    arglist.plots_dir = os.path.join(arglist.plots_dir, arglist.scenario) + "/"
+    # Create the plots directory for all modes
+    os.makedirs(arglist.plots_dir, exist_ok=True)
+    # Ensure diffusion data directory exists
+    os.makedirs(os.path.dirname(arglist.diffusion_data_path), exist_ok=True)
     print(arglist.act_noise)
 
     if arglist.mode == "train":
@@ -1283,82 +1290,88 @@ if __name__ == '__main__':
         #     rew = testRobustnessAP(arglist)
         #     print("Reward with noise shift with deffusion {}: {}".format(noise, rew))
 
-
+        arglist.noise_type = "gauss"
         # Sweep settings
+        noise_mu_list = [-0.5, 0.5]
         act_std_list = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8, 3.0]
         t_start_list = [20, 40, 60]
 
-        csv_filename = "{}_actstd_tstart_sweep.csv".format(arglist.exp_name)
+        csv_filename = "{}_gauss_mu_actstd_tstart_sweep.csv".format(arglist.exp_name)
         results = []
 
         # Baseline (no noise, no diffusion)
         rew_no_noise = testWithoutP(arglist)
         print("Baseline (no noise): {:.3f}".format(rew_no_noise))
 
-        for act_std in act_std_list:
-            arglist.act_noise = act_std
-            print("\n=== Action noise std = {} ===".format(act_std))
+        for noise_mu in noise_mu_list:
+            arglist.noise_mu = noise_mu
+            print("\n=== Noise mean = {} ===".format(noise_mu))
+            for act_std in act_std_list:
+                arglist.act_noise = act_std
+                print("\n  === Action noise std = {} ===".format(act_std))
 
-            # Noise, no diffusion
-            rew_no_diff = testRobustnessAP(
-                arglist,
-                deffusion=False
-            )
-
-            print("  No diffusion reward: {:.3f}".format(rew_no_diff))
-
-            # Store diffusion rewards per t_start
-            diff_rewards = {}
-
-            for t_start in t_start_list:
-                print("  -> t_start = {}".format(t_start))
-
-                rew_with_diff = testRobustnessAP(
+                # Noise, no diffusion
+                rew_no_diff = testRobustnessAP(
                     arglist,
-                    deffusion=True,
-                    t_start=t_start
+                    deffusion=False
                 )
 
-                diff_rewards[t_start] = rew_with_diff
+                print("    No diffusion reward: {:.3f}".format(rew_no_diff))
 
-                print(
-                    "     with diffusion (t_start={}): {:.3f}".format(
-                        t_start, rew_with_diff
+                # Store diffusion rewards per t_start
+                diff_rewards = {}
+
+                for t_start in t_start_list:
+                    print("    -> t_start = {}".format(t_start))
+
+                    rew_with_diff = testRobustnessAP(
+                        arglist,
+                        deffusion=True,
+                        t_start=t_start
                     )
-                )
 
-            # Derived metrics
-            best_diff_reward = max(diff_rewards.values())
+                    diff_rewards[t_start] = rew_with_diff
 
-            pct_inc_vs_no_diff = (
-                (best_diff_reward - rew_no_diff) / abs(rew_no_diff)
-            ) * 100.0
+                    print(
+                        "       with diffusion (t_start={}): {:.3f}".format(
+                            t_start, rew_with_diff
+                        )
+                    )
 
-            pct_inc_vs_no_noise = (
-                (best_diff_reward - rew_no_noise) / abs(rew_no_noise)
-            ) * 100.0
+                # Derived metrics
+                best_diff_reward = max(diff_rewards.values())
 
-            # Assemble row
-            row = [
-                r2(act_std),
-                r2(rew_no_noise),
-                r2(rew_no_diff)
-            ]
+                pct_inc_vs_no_diff = (
+                    (best_diff_reward - rew_no_diff) / abs(rew_no_diff)
+                ) * 100.0
 
-            for t_start in t_start_list:
-                row.append(r2(diff_rewards[t_start]))
+                pct_inc_vs_no_noise = (
+                    (best_diff_reward - rew_no_noise) / abs(rew_no_noise)
+                ) * 100.0
 
-            row.extend([
-                r2(best_diff_reward),
-                r2(pct_inc_vs_no_diff),
-                r2(pct_inc_vs_no_noise)
-            ])
+                # Assemble row
+                row = [
+                    r2(noise_mu),
+                    r2(act_std),
+                    r2(rew_no_noise),
+                    r2(rew_no_diff)
+                ]
 
-            results.append(row)
+                for t_start in t_start_list:
+                    row.append(r2(diff_rewards[t_start]))
+
+                row.extend([
+                    r2(best_diff_reward),
+                    r2(pct_inc_vs_no_diff),
+                    r2(pct_inc_vs_no_noise)
+                ])
+
+                results.append(row)
         # -----------------------------
         # Dynamic CSV header
         # -----------------------------
         header = [
+            "noise_mu",
             "action_noise_std",
             "reward_no_noise",
             "reward_noise_no_diffusion"

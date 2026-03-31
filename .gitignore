@@ -103,3 +103,24 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# Model files and checkpoints
+*.pth
+*.h5
+*.pkl
+*.model
+models/
+checkpoints/
+saved_models/
+logs/
+tensorboard/
+*.npz
+*.pt
+
+# IDE files
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
