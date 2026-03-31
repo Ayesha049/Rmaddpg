@@ -17,19 +17,19 @@ echo "Starting Simple Adversary Experiments..."
 
 # Standard training
 echo "Training standard MADDPG on simple_adversary..."
-python ../train.py --scenario simple_adversary --exp-name saRun1 --num-episodes 60000 --save-rate 500
+python ../train_new.py --scenario simple_adversary --exp-name saRun1 --num-episodes 60000 --save-rate 500
 
 # Collect diffusion data
 echo "Collecting diffusion data for saRun1best..."
-python ../train.py --scenario simple_adversary --exp-name saRun1best --mode collect_diffusion --num-episodes 2000 --diffusion-horizon 25 --diffusion-data-path ../../saRun1_diffusion_data.npz
+python ../train_new.py --scenario simple_adversary --exp-name saRun1best --mode collect_diffusion --num-episodes 2000 --diffusion-horizon 25
 
 # Train diffusion model
 echo "Training diffusion model for saRun1..."
-python ../train.py --scenario simple_adversary --exp-name saRun1 --mode train_diffusion --diffusion-data-path ../../saRun1_diffusion_data.npz --diffusion-model-path ../../saRun1_diffusion_model.pt --diffusion-horizon 25 --diffusion-steps 100 --diffusion-epochs 1000
+python ../train_new.py --scenario simple_adversary --exp-name saRun1 --mode train_diffusion --diffusion-horizon 25 --diffusion-steps 100 --diffusion-epochs 500
 
 # Test with diffusion
 echo "Testing saRun1best with diffusion model..."
-python ../train.py --scenario simple_adversary --exp-name saRun1best --mode test --diffusion-model-path ../../saRun1_diffusion_model.pt
+python ../train_new.py --scenario simple_adversary --exp-name saRun1best --mode test --num-test-episodes 800
 
 # # ERNIE-enhanced training
 # echo "Training ERNIE-enhanced MADDPG on simple_adversary..."

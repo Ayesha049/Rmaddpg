@@ -226,7 +226,7 @@ def absolute_scope_name(relative_scope_name):
 def load_state(fname, saver=None, exp_name=None):
     """Load all the variables to the current session from the location <fname>"""
     if(exp_name is not None):
-        fname = fname + exp_name
+        fname = os.path.join(fname, exp_name)
     if saver is None:
         saver = tf.train.Saver()
     saver.restore(get_session(), fname)

@@ -1,0 +1,3 @@
+noise_mu,action_noise_std,reward_no_noise,reward_noise_no_diffusion,reward_with_diff_t20,best_reward_with_diffusion,pct_inc_vs_no_diffusion,pct_inc_vs_no_noise_worst
+-0.50,0.20,-19.19,-18.15,-21.14,-21.14,-16.43,-10.14
+0.50,0.20,-19.19,-15.31,-7.17,-7.17,53.13,62.61
