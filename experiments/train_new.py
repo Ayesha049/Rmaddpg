@@ -48,19 +48,21 @@ if __name__ == '__main__':
         act_std_list = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
         t_start_list = [20, 40]
 
-        csv_filename = "{}_gauss_mu_actstd_tstart_sweep.csv".format(arglist.exp_name)
-        print("DEBUG: plots_dir = {}".format(arglist.plots_dir))
-        print("DEBUG: csv_filename = {}".format(csv_filename))
-        print("DEBUG: full path = {}".format(os.path.join(arglist.plots_dir, csv_filename)))
-        results = []
-
         # Baseline (no noise, no diffusion)
         rew_no_noise = testWithoutP(arglist)
         print("Baseline (no noise): {:.3f}".format(rew_no_noise))
 
+        # Create separate CSV files for each noise_mu value
         for noise_mu in noise_mu_list:
             arglist.noise_mu = noise_mu
             print("\n=== Noise mean = {} ===".format(noise_mu))
+
+            csv_filename = "{}_gauss_mu_{}_actstd_tstart_sweep.csv".format(arglist.exp_name, r2(noise_mu).replace('.', 'p').replace('-', 'n'))
+            print("DEBUG: plots_dir = {}".format(arglist.plots_dir))
+            print("DEBUG: csv_filename = {}".format(csv_filename))
+            print("DEBUG: full path = {}".format(os.path.join(arglist.plots_dir, csv_filename)))
+            results = []
+
             for act_std in act_std_list:
                 arglist.act_noise = act_std
                 print("\n  === Action noise std = {} ===".format(act_std))
@@ -104,9 +106,8 @@ if __name__ == '__main__':
                     (best_diff_reward - rew_no_noise) / abs(rew_no_noise)
                 ) * 100.0
 
-                # Assemble row
+                # Assemble row (exclude noise_mu since it's in filename)
                 row = [
-                    r2(noise_mu),
                     r2(act_std),
                     r2(rew_no_noise),
                     r2(rew_no_diff)
@@ -123,30 +124,29 @@ if __name__ == '__main__':
 
                 results.append(row)
 
-        # Dynamic CSV header
-        header = [
-            "noise_mu",
-            "action_noise_std",
-            "reward_no_noise",
-            "reward_noise_no_diffusion"
-        ]
+            # Dynamic CSV header (exclude noise_mu since it's in filename)
+            header = [
+                "action_noise_std",
+                "reward_no_noise",
+                "reward_noise_no_diffusion"
+            ]
 
-        for t_start in t_start_list:
-            header.append("reward_with_diff_t{}".format(t_start))
+            for t_start in t_start_list:
+                header.append("reward_with_diff_t{}".format(t_start))
 
-        header.extend([
-            "best_reward_with_diffusion",
-            "pct_inc_vs_no_diffusion",
-            "pct_inc_vs_no_noise_worst"
-        ])
+            header.extend([
+                "best_reward_with_diffusion",
+                "pct_inc_vs_no_diffusion",
+                "pct_inc_vs_no_noise_worst"
+            ])
 
-        with open(os.path.join(arglist.plots_dir, csv_filename), mode="w", newline="") as f:
-            print("Saving CSV to: {}".format(os.path.abspath(os.path.join(arglist.plots_dir, csv_filename))))
-            writer = csv.writer(f)
-            writer.writerow(header)
-            writer.writerows(results)
+            with open(os.path.join(arglist.plots_dir, csv_filename), mode="w", newline="") as f:
+                print("Saving CSV to: {}".format(os.path.abspath(os.path.join(arglist.plots_dir, csv_filename))))
+                writer = csv.writer(f)
+                writer.writerow(header)
+                writer.writerows(results)
 
-        print("Saved robustness results to {}".format(csv_filename))
+            print("Saved robustness results to {}".format(csv_filename))
 
     elif arglist.mode == "collect_diffusion":
         collect_diffusion_data(arglist)
